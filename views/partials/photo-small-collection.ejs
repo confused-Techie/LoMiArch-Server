@@ -1,0 +1,9 @@
+<section class="overflow-hidden text-gray-700">
+  <div class="container px-5 py-2 mx-auto lg:pt-24 lg:px-full">
+    <div class="flex flex-wrap -m-1 md:-m-2">
+      <% items.forEach(item => { %>
+        <%- include('./photo-small.ejs', { item }); %>
+      <% }); %>
+    </div>
+  </div>
+</section>
