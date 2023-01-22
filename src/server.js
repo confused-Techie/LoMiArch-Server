@@ -10,10 +10,12 @@ class Server {
     this.url_knownlist = opts.URL_KNOWNLIST;
     this.url_whitelist_only = opts.URL_WHITELIST_ONLY;
 
+    // Class Scope Declared Services (Used to Shutdown those needed.)
+    this.downloadManager = null;
   }
 
   async start() {
-    const downloadManager = new DownloadManager({
+    this.downloadManager = new DownloadManager({
       url_whitelist: this.url_whitelist,
       url_blacklist: this.url_blacklist,
       url_knownlist: this.url_knownlist,
@@ -21,8 +23,8 @@ class Server {
     });
 
     const http = app({
-      downloadManager,
-      uiManager,
+      downloadManager: this.downloadManager,
+      uiManager: uiManager,
     });
 
     return new Promise((resolve) => {
@@ -33,8 +35,9 @@ class Server {
 
   async stop(reason) {
     console.log(`${reason} Called Server Shutdown`);
-    return new Promise((resolve) => {
+    return new Promise(async (resolve) => {
       this.server.close(resolve);
+      await this.downloadManager.close();
     });
   }
 }

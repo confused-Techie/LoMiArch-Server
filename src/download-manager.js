@@ -83,6 +83,17 @@ class DownloadManager {
 
   }
 
+  async close() {
+    console.log("DownloadManager is saving any open Download Queue");
+    // This will be called during the shutdown event.
+    // In which case we want to quickly save our queued items.
+    if (this.queue.length > 0) {
+      fs.writeFileSync("./data/config/download_queue.json", JSON.stringify(this.queue, null, 2));
+      return;
+    }
+    return;
+  }
+
   processQueue() {
     // This is in charge of processing items in the queue of available downloads.
 
