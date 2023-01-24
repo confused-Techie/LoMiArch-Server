@@ -1,6 +1,7 @@
 const app = require("./main.js");
 const DownloadManager = require("./download-manager.js");
 const uiManager = require("./ui-manager.js");
+const { Level } = require("level");
 
 class Server {
   constructor(opts) {
@@ -12,9 +13,14 @@ class Server {
 
     // Class Scope Declared Services (Used to Shutdown those needed.)
     this.downloadManager = null;
+    this.db = null;
   }
 
   async start() {
+    this.db = new Level("./data/config/level.db", { valueEncoding: "json"});
+    await this.db.put('a', 1);
+    let tmp = await this.db.status;
+    console.log(tmp);
     this.downloadManager = new DownloadManager({
       url_whitelist: this.url_whitelist,
       url_blacklist: this.url_blacklist,
@@ -38,6 +44,12 @@ class Server {
     return new Promise(async (resolve) => {
       this.server.close(resolve);
       await this.downloadManager.close();
+      //if (!this.db.supports.permanence) {
+        await this.db.close();
+      //} else {
+        //console.log("LevelDB Doesn't support persistant storage!");
+      //}
+      // This check always fails
     });
   }
 }
