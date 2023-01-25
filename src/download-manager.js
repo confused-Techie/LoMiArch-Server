@@ -27,6 +27,8 @@ class DownloadManager {
     if (typeof opts.url_knownlist !== "undefined" && opts.url_knownlist !== "") {
       readURLList(opts.url_knownlist, this.url.knownlist);
     }
+
+    reviveQueues();
   }
 
   readURLList(loc, obj) {
@@ -41,6 +43,21 @@ class DownloadManager {
       console.log(`There was an error reading and filling the whitelist: ${err}`);
       console.log(err);
     }
+  }
+
+  reviveQueues() {
+    // This function will read any queues from disk and inject them into our instances
+    // queues.
+
+    let queue = fs.readFileSync("./data/config/download_queue.json");
+
+    this.queue = JSON.parse(queue);
+
+    let lts = fs.readFileSync("./data/config/download_longTermStorage.json");
+
+    this.longTermStorage = JSON.parse(queue);
+
+    return;
   }
 
   verifyURL(value) {
@@ -92,7 +109,12 @@ class DownloadManager {
     // In which case we want to quickly save our queued items.
     if (this.queue.length > 0) {
       fs.writeFileSync("./data/config/download_queue.json", JSON.stringify(this.queue, null, 2));
-      return;
+      console.log("DownloadManager saved the current Download Queue.");
+    }
+
+    if (this.longTermStorage.length > 0) {
+      fs.writeFileSync("./data/config/download_longTermStorage.json", JSON.stringify(this.queue, null, 2));
+      console.log("DownloadManager saved the current LongTermStorage Queue");
     }
     return;
   }
