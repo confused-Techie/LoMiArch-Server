@@ -1,3 +1,4 @@
 node_modules/
 public/site.css
 data/config/level.db/
+resources/

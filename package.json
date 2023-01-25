@@ -14,6 +14,9 @@
     "postinstall": "npm run tailwind:build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "engines": {
+    "yt-dlp": "^2023.01.06"
+  },
   "keywords": [],
   "author": "",
   "license": "MIT",
@@ -22,8 +25,10 @@
     "express": "^4.18.2",
     "js-yaml": "^4.1.0",
     "level": "^8.0.0",
+    "superagent": "^8.0.8",
     "tailwindcss": "^3.2.4",
-    "tw-elements": "^1.0.0-alpha13"
+    "tw-elements": "^1.0.0-alpha13",
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "concurrently": "^7.6.0",
