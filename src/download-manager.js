@@ -129,6 +129,12 @@ class DownloadManager {
       let type = await this.determineContentType(item);
 
       switch(type) {
+        case "text/html": {
+          // The link is just to a standard webpage.
+          // But we will have some specific exclusions in handling based on known behavior.
+          const uniqueCases = await this.handleHTMLExclusions(item);
+
+        }
         case "image/jpeg": {
           const res = await this.getPhoto(item, "jpeg");
 
@@ -204,6 +210,10 @@ class DownloadManager {
         });
       }
     });
+  }
+
+  async handleHTMLExclusions(url) {
+
   }
 
 }
