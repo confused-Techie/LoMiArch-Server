@@ -1,6 +1,7 @@
 const fs = require("fs");
 const request = require("superagent");
 const { v4: uuidv4 } = require("uuid");
+const { URL } = require("node:url");
 
 class DownloadManager {
   constructor(opts) {
@@ -28,7 +29,7 @@ class DownloadManager {
       readURLList(opts.url_knownlist, this.url.knownlist);
     }
 
-    reviveQueues();
+    this.reviveQueues();
   }
 
   readURLList(loc, obj) {
@@ -49,13 +50,17 @@ class DownloadManager {
     // This function will read any queues from disk and inject them into our instances
     // queues.
 
-    let queue = fs.readFileSync("./data/config/download_queue.json");
+    if (fs.existsSync("./data/config/download_queue.json")) {
+      let queue = fs.readFileSync("./data/config/download_queue.json");
 
-    this.queue = JSON.parse(queue);
+      this.queue = JSON.parse(queue);
+    }
 
-    let lts = fs.readFileSync("./data/config/download_longTermStorage.json");
+    if (fs.existsSync("./data/config/download_longTermStorage.json")) {
+      let lts = fs.readFileSync("./data/config/download_longTermStorage.json");
 
-    this.longTermStorage = JSON.parse(queue);
+      this.longTermStorage = JSON.parse(lts);
+    }
 
     return;
   }
@@ -113,33 +118,64 @@ class DownloadManager {
     }
 
     if (this.longTermStorage.length > 0) {
-      fs.writeFileSync("./data/config/download_longTermStorage.json", JSON.stringify(this.queue, null, 2));
+      fs.writeFileSync("./data/config/download_longTermStorage.json", JSON.stringify(this.longTermStorage, null, 2));
       console.log("DownloadManager saved the current LongTermStorage Queue");
     }
     return;
   }
 
   async processQueue() {
+    console.log("Processing Download Queue...");
     // This is in charge of processing items in the queue of available downloads.
 
     while(this.queue.length > 0) {
 
       let item = this.queue[this.queue.length-1]; // Get last element
 
-      let type = await this.determineContentType(item);
+      const special = await this.handleSpecials(item);
+
+      if (special.ok) {
+        this.queue.pop();
+        break;
+      }
+
+      // There will be several items that need or should have special handling.
+      // This either means it's an item that we know will be needed to grab with another
+      // tool, or that we know will fail our content type check.
+      // If we are able to get it this way then we don't need to handle it here.
+      // Whereas if we can't then we will continue it's handling here.
+
+      let type = await this.determineContentTypeLight(item);
+
+      if (type === "unknown") {
+        // Lets try to find the type one more time
+        type = await this.determineContentTypeHeavy(item);
+      }
 
       switch(type) {
+        case "text/html; charset=utf-8":
         case "text/html": {
           // The link is just to a standard webpage.
           // But we will have some specific exclusions in handling based on known behavior.
           const uniqueCases = await this.handleHTMLExclusions(item);
 
+          if (uniqueCases.ok) {
+            // This was handled as an exclusion and lets remove it from the queue
+            this.queue.pop();
+            break;
+          }
+
+          console.log(`Unable to Download: ${item}!`);
+          this.longTermStorage.push(item);
+          this.queue.pop();
+          break;
         }
         case "image/jpeg": {
+          await this.handleHTMLExclusions(item);
           const res = await this.getPhoto(item, "jpeg");
 
           if (!res.ok) {
-            console.log(`Unable to Downloading ${item}!`);
+            console.log(`Unable to Download ${item}!`);
             console.error(res.content);
             this.longTermStorage.push(item);
             this.queue.pop();
@@ -168,11 +204,18 @@ class DownloadManager {
 
   }
 
-  async determineContentType(url) {
+  async determineContentTypeLight(url) {
+    console.log(`Beginning check on: ${url}`);
     try {
-      const res = await request.get(url);
+      const res = await request.head(url)
+          .set("Accept", "*/*")
+          .set("Connection", "keep-alive")
+          .set("User-Agent", "LoMiArch-Bot")
+          .timeout(10000);
+          // All of these values should be configurable
 
       if (res.statusCode === 200) {
+        console.log(`Returning Content Type: ${res.header["content-type"]}`);
         return res.header["content-type"];
       } else {
         console.log(`Failed to Download: ${url} - Status: ${res.statusCode}`);
@@ -182,7 +225,29 @@ class DownloadManager {
       console.log(`Failed to Download: ${url} - Error: ${err}`);
       return "unknown";
     }
+  }
 
+  async determineContentTypeHeavy(url) {
+    console.log(`Beginning Heavy Check on: ${url}`);
+    try {
+      const res = await request.get(url)
+          .set("Accept", "*/*")
+          .set("Connection", "keep-alive")
+          .set("User-Agent", "LoMiArch-Bot")
+          .timeout(10000);
+          // All of these values should be configurable
+
+      if (res.statusCode === 200) {
+        console.log(`Returning Content Type: ${res.header["content-type"]}`);
+        return res.header["content-type"];
+      } else {
+        console.log(`Failed to Download: ${url} During Heavy Content Type Check - Status: ${res.statusCode}`);
+        return "unknown";
+      }
+    } catch(err) {
+      console.log(`Failed Heavy Content Type Check: ${url} - Error: ${err}`);
+      return "unknown";
+    }
   }
 
   async getPhoto(url, type) {
@@ -193,8 +258,7 @@ class DownloadManager {
         const stream = fs.createWriteStream(`./data/data/${id}.${type}`);
 
         stream.on("finish", function() {
-          //console.log(fs.statSync("./data/data/file.jpeg"));
-          console.log(`Finished Downloading: ${url}`);
+          console.log(`Finished Downloading: ${url} to './data/data/${id}.${type}'`);
 
           resolve({
             ok: true,
@@ -213,7 +277,23 @@ class DownloadManager {
   }
 
   async handleHTMLExclusions(url) {
+    const parsedURL = new URL(url);
+    console.log(parsedURL.hostname);
+    if (parsedURL.hostname.endsWith("tiktok.com")) {
+      console.log("Special TikTok");
+    }
 
+    // Any specific handling that's needed can be entered here following this pattern.
+    return {
+      ok: false,
+      short: "No Available Exclusion Handlers"
+    };
+  }
+
+  async handleSpecials(item) {
+    return {
+      ok: false
+    };
   }
 
 }
